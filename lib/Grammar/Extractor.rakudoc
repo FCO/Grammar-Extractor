@@ -1,0 +1,202 @@
+=begin pod
+
+=head1 NAME
+
+Grammar::Extractor — Trace and introspect Raku grammar parses with a step-by-step rule tree
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+
+use Grammar::Extractor;
+
+# With an existing grammar type
+grammar MyGrammar {
+    token TOP { <word> '!'? }
+    token word { \w+ }
+}
+my $e = Grammar::Extractor.new(:grammar(MyGrammar));
+my $m = $e.parse("hello!");
+say $e.Bool;    # True
+say $e.step.name;       # TOP
+say $e.step.children[0].name;  # word
+
+# With a grammar defined as a string
+my $e2 = Grammar::Extractor.new(:code('grammar { token TOP { \d+ } }'));
+$e2.parse("42");
+
+# Debug mode prints BEGIN/END traces to stderr
+my $e3 = Grammar::Extractor.new(:grammar(MyGrammar), :debug);
+$e3.parse("hello!");
+
+# Dump the step tree to stderr
+$e.dump;
+
+=end code
+
+=head1 DESCRIPTION
+
+Grammar::Extractor wraps every regex rule in a Grammar at construction time,
+building a B<Step tree> that mirrors the full parse. Each step corresponds to
+one rule that was tested and stores its result, name, and child steps for
+sub-rules. This lets you inspect exactly which rules matched, which failed,
+and what text each consumed — without modifying the grammar itself.
+
+=head1 CONSTRUCTOR
+
+=head2 :grammar
+
+    my $e = Grammar::Extractor.new(:grammar(MyGrammar));
+
+Accepts an existing L<Grammar> type. The grammar's regex rules are wrapped
+at clone time to build the trace tree.
+
+=head2 :code
+
+    my $e = Grammar::Extractor.new(:code('grammar { token TOP { \d+ } }'));
+
+Accepts a Raku source string that evaluates to a grammar. Each invocation
+compiles in an isolated internal namespace, so identical grammar names
+across instances do not conflict.
+
+=head2 :debug
+
+    my $e = Grammar::Extractor.new(:grammar(MyGrammar), :debug);
+
+When True, prints C<BEGIN> / C<END> trace lines to stderr for each rule
+as it is entered and exited during parsing.
+
+=head1 METHODS
+
+=head2 parse
+
+    my $match = $e.parse($string, :$actions);
+
+Delegates to the underlying grammar's C<.parse> method, forwarding all
+arguments. Returns the L<Match> object. After parsing, C<.Bool> reflects
+success and C<.step> holds the root of the trace tree.
+
+=head2 Bool
+
+    say $e.Bool;  # True if parse succeeded
+
+Returns whether the most recent C<.parse> call succeeded.
+
+=head2 dump
+
+    $e.dump;
+
+Prints the full step tree to stderr. Each line shows the rule name,
+matched or missing text, and whether the rule succeeded. Children are
+indented.
+
+=head2 matches / tested
+
+    say $e.matches;   # Bag of matched rule names
+    say $e.tested;    # Bag of all tested rule names
+
+Convenience methods delegated from the root C<Step>. C<matches> returns a
+L<Bag> of rule names that matched; C<tested> returns a Bag of every rule
+that was tried during the parse.
+
+=head2 visit
+
+    $e.visit: -> $step { say $step.name; True };
+
+Traverses the step tree depth-first. The callback receives each step;
+return C<True> to continue into children, C<False> to prune.
+
+=head2 Seq / Array
+
+    my @all-steps = $e.Seq;
+    say @all-steps.elems;  # total steps in tree
+
+Returns a flat sequence or array of every step in the tree.
+
+=head2 grep / map
+
+    say $e.grep(*.so).elems;  # count successful steps
+    say $e.map(*.name);       # all rule names
+
+=head1 CLASS: Grammar::Extractor::Step
+
+Each node in the trace tree.
+
+=head2 name
+
+    $step.name  # Str — rule name, e.g. "TOP"
+
+=head2 children
+
+    $step.children  # Positional of child Step objects
+
+=head2 result
+
+    $step.result  # Match — the underlying Match object (raw)
+
+Delegates C<Str>, C<Int>, C<pos>, C<from>, C<orig>, C<so>, C<not> to the
+Match.
+
+=head2 Bool
+
+    $step.Bool  # True if the rule matched
+
+=head2 so / not
+
+    $step.so   # True if matched
+    $step.not  # True if failed
+
+=head2 missing
+
+    $step.missing  # Str — unmatched remainder (only on failure)
+
+Returns the text from C<.from> to end of original string.
+
+=head2 str-or-missing
+
+    $step.str-or-missing  # Str — matched text on success, missing on failure
+
+=head2 dump
+
+    $step.dump(:$indent);
+
+Recursively prints this step and its children to stderr.
+
+=head2 Iterable
+
+    .say for $step;  # iterates all descendant steps
+
+Step C<does Iterable>, so you can loop over it, call C<.map>, C<.grep>,
+etc. The iteration visits all descendants depth-first.
+
+=head2 Seq / Array
+
+    my $all = $step.Seq;     # flat sequence of all steps
+    my @arr = $step.Array;   # same as array
+
+=head2 visit
+
+    $step.visit: -> $s { say $s.name; True };
+
+Depth-first traversal. Return C<True> from the callback to descend into
+children, C<False> to stop.
+
+=head2 matches / tested
+
+    say $step.matches;   # Bag("TOP" => 1, "word" => 1)
+    say $step.tested;    # Bag of all rules tried in subtree
+
+C<matches> returns a L<Bag> of rule names that succeeded. C<tested>
+returns a Bag of every rule name in the subtree.
+
+=head1 AUTHOR
+
+Fernando Correa de Oliveira <fco@cpan.org>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2026 Fernando Correa de Oliveira
+
+This library is free software; you can redistribute it and/or modify it under the Artistic License 2.0.
+
+=end pod

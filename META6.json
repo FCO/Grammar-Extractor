@@ -1,0 +1,25 @@
+{
+  "auth": "zef:FCO",
+  "authors": [
+    "Fernando Correa de Oliveira"
+  ],
+  "build-depends": [
+  ],
+  "depends": [
+  ],
+  "description": "Trace and introspect Raku grammar parses with a step-by-step rule tree",
+  "license": "Artistic-2.0",
+  "name": "Grammar::Extractor",
+  "perl": "6.d",
+  "provides": {
+    "Grammar::Extractor": "lib/Grammar/Extractor.rakumod"
+  },
+  "resources": [
+  ],
+  "source-url": "",
+  "tags": [
+  ],
+  "test-depends": [
+  ],
+  "version": "0.0.1"
+}

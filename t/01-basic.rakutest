@@ -1,0 +1,220 @@
+use Test;
+use Grammar::Extractor;
+
+sub capture-stderr(&code) {
+    my $err = '';
+    my $*ERR = class {
+        method print(*@c) { $err ~= @c.join('') }
+        method say(*@c)   { $err ~= @c.join('') ~ "\n" }
+        method flush { }
+    };
+    &code();
+    $err
+}
+
+grammar SimpleGrammar {
+    token TOP { \d+ }
+}
+
+grammar NestedGrammar {
+    token TOP { <word> '!'? }
+    token word { \w+ }
+}
+
+grammar NestedGrammar2 {
+    token TOP { <word> '!'? }
+    token word { \w+ }
+}
+
+pass "test file skeleton ready";
+
+{
+    my $e = Grammar::Extractor.new(:grammar(NestedGrammar));
+    my $m = $e.parse("hello!");
+    ok $m, ".parse returns a Match";
+    isa-ok $e.step, Grammar::Extractor::Step, ".step is a Step";
+    ok $e.step.Bool, ".step.Bool is True";
+    ok $e.step.children, ".step.children is populated";
+    is $e.step.name, "TOP", "root step name is TOP";
+    is $e.step.children[0].name, "word", "child step name is word";
+}
+
+{
+    my class Actions {
+        has $.call-count = 0;
+        method TOP($/) { $!call-count++ }
+        method word($/) { $!call-count++ }
+    }
+    my $a = Actions.new;
+    my $e = Grammar::Extractor.new(:grammar(NestedGrammar2));
+    my $m = $e.parse("hello!", :actions($a));
+    ok $m, ".parse with actions returns a Match";
+    is $a.call-count, 2, "action methods called for TOP and word";
+    ok $e.step.Bool, ".step.Bool is True with actions";
+    is $e.step.children[0].name, "word", "Step tree populated with actions";
+}
+
+{
+    my $e = Grammar::Extractor.new(:grammar(SimpleGrammar));
+    my $m = $e.parse("abc");
+    ok $m ~~ Match, "failed parse returns a Match";
+    nok $e.Bool, "extractor.Bool is False on failure";
+    nok $e.step.Bool, "step.Bool is False on failure";
+}
+
+{
+    my $e = Grammar::Extractor.new(:code('grammar { token TOP { \d+ } }'));
+    my $m = $e.parse("42");
+    ok $m, "grammar from :code parses successfully";
+    ok $e.step.Bool, "step.Bool is True from :code grammar";
+}
+
+{
+    my $e = Grammar::Extractor.new(:code('grammar { token TOP { <num> }; token num { \d+ } }'));
+    my $m = $e.parse("42");
+    ok $m, ":code multi-rule parse succeeds";
+    ok $e.step.Bool, ":code multi-rule step.Bool is True";
+    ok $e.step.children, ":code multi-rule has children";
+    is $e.step.children[0].name, "num", ":code child step is num";
+}
+
+{
+    throws-like { Grammar::Extractor.new(:code('not a valid grammar')) },
+        Exception, "invalid :code throws at construction";
+}
+
+{
+    my $code = 'grammar { token TOP { \d+ } }';
+    my $e1 = Grammar::Extractor.new(:code($code));
+    my $e2 = Grammar::Extractor.new(:code($code));
+    ok $e1.parse("42"), "identical :code instance 1 parses";
+    ok $e2.parse("42"), "identical :code instance 2 parses";
+    ok $e1.step.Bool, "identical :code instance 1 step.Bool True";
+    ok $e2.step.Bool, "identical :code instance 2 step.Bool True";
+}
+
+{
+    my $e1 = Grammar::Extractor.new(:code('grammar Foo { token TOP { \d+ } }'));
+    my $e2 = Grammar::Extractor.new(:code('grammar Foo { token TOP { <:alpha>+ } }'));
+    ok $e1.parse("42"),   "Foo-digit parses digits";
+    nok $e1.parse("abc"), "Foo-digit rejects alpha";
+    ok $e2.parse("hello"), "Foo-alpha parses alpha";
+    nok $e2.parse("42"),   "Foo-alpha rejects digits";
+}
+
+{
+    my $e = Grammar::Extractor.new(:grammar(SimpleGrammar));
+    $e.parse("42");
+    my $s = $e.step;
+    ok $s.Bool, "Step.Bool is True";
+    ok $s.so,   "Step.so is True";
+    nok $s.not, "Step.not is False";
+    is $s.Str, "42", "Step.Str returns matched text";
+    is $s.str-or-missing, "42", "Step.str-or-missing returns matched text";
+}
+
+{
+    my $e = Grammar::Extractor.new(:grammar(SimpleGrammar));
+    $e.parse("abc");
+    my $s = $e.step;
+    nok $s.Bool, "Step.Bool is False on failure";
+    nok $s.so,   "Step.so is False on failure";
+    ok $s.not,   "Step.not is True on failure";
+    is $s.str-or-missing, "abc", "Step.str-or-missing returns missing text";
+    ok $s.missing.defined, "Step.missing is defined on failure";
+}
+
+{
+    my $e = Grammar::Extractor.new(:grammar(SimpleGrammar));
+    $e.parse("42");
+    is $e.step.result.Str, "42", "Step.result is raw Match";
+}
+
+{
+    my $e = Grammar::Extractor.new(:grammar(SimpleGrammar));
+    $e.parse("42");
+    my $out = capture-stderr { $e.dump };
+    like $out, /TOP/, ".dump output contains rule name";
+}
+
+{
+    my $e = Grammar::Extractor.new(:grammar(SimpleGrammar), :debug);
+    my $out = capture-stderr { $e.parse("42") };
+    like $out, /BEGIN/, ".debug output contains BEGIN";
+    like $out, /END/,   ".debug output contains END";
+}
+
+{
+    my $e = Grammar::Extractor.new(:grammar(SimpleGrammar));
+    $e.parse("");
+    nok $e.Bool, "empty string parse is False";
+}
+
+{
+    my $e = Grammar::Extractor.new(:grammar(SimpleGrammar));
+    $e.parse("!!!");
+    nok $e.Bool, "non-matching parse is False";
+}
+
+{
+    my $e = Grammar::Extractor.new(:code('grammar { token TOP { \d+ } }'));
+    $e.parse("42");
+    ok $e.step ~~ Iterable, "Step does Iterable";
+    is $e.step.Seq.elems, 1, "Step.Seq has 1 element for single-rule grammar";
+    is $e.step.Seq[0].name, "TOP", "Step.Seq contains TOP step";
+}
+
+{
+    my $e = Grammar::Extractor.new(:code('grammar { token TOP { <num> }; token num { \d+ } }'));
+    $e.parse("42");
+    is $e.step.Seq.elems, 2, "Step.Seq has 2 elements for nested grammar";
+    is $e.step.Seq[0].name, "TOP", "Step.Seq[0] is TOP";
+    is $e.step.Seq[1].name, "num", "Step.Seq[1] is num";
+    is $e.step.Array.elems, 2, "Step.Array has 2 elements";
+}
+
+{
+    my $e = Grammar::Extractor.new(:code('grammar { token TOP { <num> }; token num { \d+ } }'));
+    $e.parse("42");
+    my @names;
+    $e.step.visit: -> $s { @names.push: $s.name; True };
+    is @names.join(","), "TOP,num", "Step.visit visits all nodes depth-first";
+
+    @names = [];
+    $e.step.visit: -> $s { @names.push: $s.name; False };
+    is @names.join(","), "TOP", "Step.visit short-circuits on False";
+}
+
+{
+    my $e = Grammar::Extractor.new(:code('grammar { token TOP { <num> }; token num { \d+ } }'));
+    $e.parse("42");
+    ok $e.step.matches ~~ Bag, "Step.matches returns a Bag";
+    is $e.step.matches<TOP>, 1, "Step.matches has TOP";
+    is $e.step.matches<num>, 1, "Step.matches has num";
+}
+
+{
+    my $e = Grammar::Extractor.new(:code('grammar { token TOP { <num> }; token num { \d+ } }'));
+    $e.parse("42");
+    ok $e.step.tested ~~ Bag, "Step.tested returns a Bag";
+    is $e.step.tested<TOP>, 1, "Step.tested has TOP";
+    is $e.step.tested<num>, 1, "Step.tested has num";
+}
+
+{
+    my $e = Grammar::Extractor.new(:code('grammar { token TOP { \d+ } }'));
+    $e.parse("abc");
+    is $e.step.matches.elems, 0, "failed parse Step.matches is empty";
+    is $e.step.tested<TOP>, 1, "failed parse Step.tested has TOP";
+}
+
+{
+    my $e = Grammar::Extractor.new(:code('grammar { token TOP { <num> }; token num { \d+ } }'));
+    $e.parse("42");
+    is $e.matches<TOP>, 1, "Extractor.matches delegates";
+    is $e.tested<num>, 1, "Extractor.tested delegates";
+    is $e.Seq.elems, 2, "Extractor.Seq delegates";
+    is $e.grep(*.so).elems, 2, "Extractor.grep delegates";
+}
+
+done-testing;
