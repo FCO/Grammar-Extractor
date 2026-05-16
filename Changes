@@ -1,6 +1,8 @@
 Revision history for Grammar::Extractor
 
 {{$NEXT}}
+
+0.0.2  2026-05-16T18:15:45+01:00
     - Step class now does Iterable (visit, Seq, Array, iterator, matches, tested)
     - Fix: visit method now recurses into grandchildren (was 1-level only)
     - Grammar compilation via :code uses isolated internal module namespace
@@ -9,4 +11,6 @@ Revision history for Grammar::Extractor
     - Added POD documentation (lib/Grammar/Extractor.rakudoc)
     - Update dist.ini ReadmeFromPod filename to rakudoc
     - Update META6.json description
+
+0.0.1  2026-05-16T18:03:37+01:00
     - Initial version
