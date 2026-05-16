@@ -1,2 +1,6 @@
 .precomp/
 /Grammar-Extractor-*
+.opencode/
+AGENTS.md
+opencode.json
+openspec/
