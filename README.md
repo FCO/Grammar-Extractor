@@ -30,6 +30,18 @@ $e2.parse("42");
 my $e3 = Grammar::Extractor.new(:grammar(MyGrammar), :debug);
 $e3.parse("hello!");
 
+# With a pre-built action object (applied on every parse)
+my $actions = class { method TOP($/) { say "matched" } }.new;
+my $e4 = Grammar::Extractor.new(:grammar(MyGrammar), :actions($actions));
+$e4.parse("hello!");  # calls $actions.TOP($/)
+
+# With an action class defined as a string (compiled automatically)
+my $e5 = Grammar::Extractor.new(
+    :grammar(MyGrammar),
+    :actions-code('class A { method TOP($/) { say "matched" } }')
+);
+$e5.parse("hello!");
+
 # Dump the step tree to stderr
 $e.dump;
 ```
@@ -56,6 +68,23 @@ Accepts an existing [Grammar](Grammar) type. The grammar's regex rules are wrapp
 
 Accepts a Raku source string that evaluates to a grammar. Each invocation compiles in an isolated internal namespace, so identical grammar names across instances do not conflict.
 
+:actions
+--------
+
+    my $e = Grammar::Extractor.new(:grammar(MyGrammar), :actions($obj));
+
+Accepts an existing action object whose methods (named after grammar rules) will be called automatically on each `.parse` invocation. This avoids passing `:actions` at every parse call. The action object is stored in `$.actions` and can be accessed or replaced.
+
+:actions-code
+-------------
+
+    my $e = Grammar::Extractor.new(
+        :grammar(MyGrammar),
+        :actions-code('class A { method TOP($/) { say "matched" } }')
+    );
+
+Like `:actions`, but accepts a Raku source string that defines the action class. The code is compiled in an isolated namespace and instantiated automatically. Useful for inline action definitions.
+
 :debug
 ------
 
@@ -72,6 +101,8 @@ parse
     my $match = $e.parse($string, :$actions);
 
 Delegates to the underlying grammar's `.parse` method, forwarding all arguments. Returns the [Match](Match) object. After parsing, `.Bool` reflects success and `.step` holds the root of the trace tree.
+
+If `:actions` was set in the constructor, it is automatically forwarded to every `.parse` call. You can still override it per-call: `$e.parse($str, :actions($other))`.
 
 Bool
 ----

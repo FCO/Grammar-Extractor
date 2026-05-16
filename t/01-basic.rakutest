@@ -217,4 +217,38 @@ pass "test file skeleton ready";
     is $e.grep(*.so).elems, 2, "Extractor.grep delegates";
 }
 
+{
+    my class Actions {
+        has $.called is rw;
+        method TOP($/) { $!called++ }
+    }
+    my $a = Actions.new;
+    my $e = Grammar::Extractor.new(:grammar(SimpleGrammar), :actions($a));
+    $e.parse("42");
+    is $a.called, 1, "constructor :actions fires on parse";
+}
+
+{
+    my $e = Grammar::Extractor.new(
+        :grammar(SimpleGrammar),
+        :actions-code('class A { has $.called is rw; method TOP($/) { $!called++ } }')
+    );
+    $e.parse("42");
+    is $e.actions.called, 1, "constructor :actions-code compiles and fires";
+}
+
+{
+    throws-like {
+        Grammar::Extractor.new(:grammar(SimpleGrammar), :actions-code('not valid'))
+    }, Exception, "invalid :actions-code throws";
+}
+
+{
+    my class ParseActions { has $.called is rw; method TOP($/) { $!called++ } }
+    my $e = Grammar::Extractor.new(:grammar(SimpleGrammar));
+    $e.parse("42", :actions(ParseActions.new));
+    $e.parse("99");
+    ok $e.step.Bool, "parse works after parse with actions";
+}
+
 done-testing;

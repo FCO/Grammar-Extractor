@@ -58,19 +58,21 @@ class Step does Iterable {
 	}
 }
 
-has Bool    $.debug   = False;
-has Str     $.code;
-has Grammar $.grammar = do {
-	my $code = $!code;
+sub compile($code) {
+	return without $code;
 	my $module = "Internal::{('a'..'z').roll(30).join}";
 	qq:to/END/.EVAL
-	my \$grammar;
-	module $module \{
-		\$grammar = \$code.EVAL
-	\}
-	\$grammar
+	my \$compiled;
+	module $module \{ \$compiled = \$code.EVAL \}
+	\$compiled
 	END
 }
+
+has Bool    $.debug   = False;
+has Str     $.code;
+has Str     $.actions-code;
+has Grammar $.grammar = compile $!code;
+has Any     $.actions = compile($!actions-code).new;
 has Step    $.step handles <matches tested visit Seq dump iterator map grep>;
 has Bool    $.Bool;
 
@@ -93,13 +95,11 @@ submethod TWEAK(|) {
 
 				my $*INDENT = $indent + 1;
 				self!debug: :$indent, "BEGIN: {&rule.name} - { c.head.raku }";
-				self!pre:   :&rule, :capture(c);
 
 				my Match $result := callsame;
 				$*STEP.result     = $result;
 
 				self!debug: :$indent, "END  : {&rule.name} - { $result.raku } -> { ?$result }";
-				self!post:  :&rule, :$result;
 
 				return $result
 			}
@@ -107,11 +107,8 @@ submethod TWEAK(|) {
 	}
 }
 
-method !pre(:&rule, :$capture) {}
-method !post(:&rule, :$result) {}
-
 method parse(|c) {
-	my Match $result = $!grammar.parse: |c;
+	my Match $result = $!grammar.parse: |(actions => $_ with $!actions), |c;
 	$!Bool = ?$result;
 	$!step.bool = $!Bool;
 	$result
