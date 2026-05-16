@@ -1,6 +1,10 @@
 Revision history for Grammar::Extractor
 
 {{$NEXT}}
+    - Add :actions and :actions-code constructor options
+    - Add compile() helper with guard for undefined input
+    - Test constructor-level :actions and :actions-code (70 tests)
+    - Document :actions and :actions-code in POD
 
 0.0.2  2026-05-16T18:15:45+01:00
     - Step class now does Iterable (visit, Seq, Array, iterator, matches, tested)
