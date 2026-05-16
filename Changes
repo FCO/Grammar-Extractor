@@ -1,6 +1,8 @@
 Revision history for Grammar::Extractor
 
 {{$NEXT}}
+
+0.0.3  2026-05-17T00:39:50+01:00
     - Add :actions and :actions-code constructor options
     - Add compile() helper with guard for undefined input
     - Test constructor-level :actions and :actions-code (70 tests)
