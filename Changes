@@ -1,6 +1,12 @@
 Revision history for Grammar::Extractor
 
 {{$NEXT}}
+    - Add infinite loop guard (die on rule >1000 calls per parse)
+    - Test guard with self-recursive, mutually-recursive grammars
+    - Test shallow recursion works under the cap
+    - Test per-parse counter reset (deep then shallow on same instance)
+    - Test guard does not interfere with non-recursive grammars
+    - 85 tests (+15)
 
 0.0.3  2026-05-17T00:39:50+01:00
     - Add :actions and :actions-code constructor options

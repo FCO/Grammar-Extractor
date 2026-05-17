@@ -87,6 +87,7 @@ submethod TWEAK(|) {
 	for $!grammar.^methods.grep: { .WHAT ~~ Regex } -> &rule {
 		self!debug: "wrapping {&rule.name}";
 		&rule.wrap: my sub (|c) {
+			die "Infinite loop on '{ &rule.raku }'" if %*COUNT{&rule.name}++ >= 1000;
 			my Step $step   = $_ with $*STEP;
 			my UInt $indent = $*INDENT // 0;
 			{
@@ -108,6 +109,7 @@ submethod TWEAK(|) {
 }
 
 method parse(|c) {
+	my %*COUNT;
 	my Match $result = $!grammar.parse: |(actions => $_ with $!actions), |c;
 	$!Bool = ?$result;
 	$!step.bool = $!Bool;

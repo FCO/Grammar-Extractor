@@ -251,4 +251,55 @@ pass "test file skeleton ready";
     ok $e.step.Bool, "parse works after parse with actions";
 }
 
+# 1.1 Self-recursive grammar guard test
+{
+    my $e = Grammar::Extractor.new(:code(Q{grammar { token TOP { <TOP> | \d+ } }}));
+    dies-ok { $e.parse("42") }, "self-recursive grammar triggers guard (does not hang)";
+}
+
+# 1.2 Mutually recursive grammar guard test
+{
+    my $e = Grammar::Extractor.new(:code(Q{grammar { token a { <b> }; token b { <a> | \d+ }; token TOP { <a> } }}));
+    dies-ok { $e.parse("42") }, "mutually recursive grammar triggers guard (does not hang)";
+}
+
+# 2.1 Shallow recursion (3 levels deep, under 1000 cap)
+{
+    my $e = Grammar::Extractor.new(:code(Q{grammar { token TOP { . <TOP> | \d+ } }}));
+    my $m = $e.parse("ABC42");
+    ok $m, "shallow recursive parse succeeds";
+    ok $e.step.Bool, "shallow recursion step.Bool is True";
+    is $e.step.Seq.elems, 5, "shallow recursion has 5 steps (3 dots + 2 digits)";
+}
+
+# 3.1 Deep recursion then normal parse on same Extractor
+{
+    my $e = Grammar::Extractor.new(:code(Q{grammar { token TOP { . <TOP> | \d+ } }}));
+    my $dots = "." x 2000;
+    dies-ok { $e.parse($dots ~ "42") }, "deep recursive parse triggers guard";
+    my $m2 = $e.parse("AB42");
+    ok $m2, "second parse after guard trigger succeeds";
+    ok $e.step.Bool, "second parse step.Bool is True";
+}
+
+# 3.2 Two sequential shallow parses on same Extractor
+{
+    my $e = Grammar::Extractor.new(:code(Q{grammar { token TOP { . <TOP> | \d+ } }}));
+    my $r1 = $e.parse("AB42");
+    ok $r1, "first sequential shallow parse succeeds";
+    ok $e.step.Bool, "first shallow step.Bool is True";
+    my $r2 = $e.parse("C42");
+    ok $r2, "second sequential shallow parse succeeds";
+    ok $e.step.Bool, "second shallow step.Bool is True";
+}
+
+# 4.1 Non-recursive grammar unaffected
+{
+    my $e = Grammar::Extractor.new(:code(Q{grammar { token TOP { <num> }; token num { \d+ } }}));
+    $e.parse("42");
+    ok $e.step.Bool, "non-recursive grammar step.Bool is True";
+    ok $e.step.children, "non-recursive grammar has children";
+    is $e.step.children[0].name, "num", "non-recursive child step is num";
+}
+
 done-testing;
